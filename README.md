@@ -1,767 +1,1323 @@
 # Jellyfin Logo Intro Renderer
 
-This script creates a short, professional entrance animation for the Jellyfin logo.
+A cross-platform Python renderer for creating a polished three-second entrance animation from the Jellyfin logo.
 
-The animation traces the Jellyfin symbol, sweeps the original gradient through it, and then reveals the Jellyfin wordmark. It produces both a transparent master file and a standard MP4 preview.
+The animation traces the Jellyfin symbol onto the canvas, sweeps the original gradient into place, and reveals the Jellyfin wordmark from left to right.
 
-## Animation specifications
+The renderer creates both:
 
-| Property | Specification |
-|---|---|
-| Duration | 3 seconds |
-| Canvas size | 1004 × 288 pixels |
-| Frame rate | 30 frames per second |
-| Total frames | 90 |
-| Audio | None |
-| Playback style | One-shot entrance |
-| Transparent output | ProRes 4444 MOV |
-| Preview output | H.264 MP4 on black |
-| Intended source format | PNG |
-
-## Files created
-
-The script creates two video files:
-
-### `jellyfin_logo_intro_alpha.mov`
-
-This is the transparent master.
-
-It uses Apple ProRes 4444 and retains the transparent background. Use this file when creating an animated WebP or when importing the animation into editing or compositing software.
-
-Some video players display transparency as black. That does not necessarily mean the transparency has been removed.
-
-### `jellyfin_logo_intro.mp4`
-
-This is a standard H.264 preview with the animation placed over a black background.
-
-It is useful for checking the animation in an ordinary media player. This MP4 does not contain transparency.
-
-## Requirements
-
-For the simplest setup, use the following:
-
-| Software | Supported setup |
-|---|---|
-| Operating system | Windows, macOS, or Linux |
-| Python | Python 3.10 or later |
-| Recommended Python | Python 3.12, 3.13, or 3.14 |
-| NumPy | Version 2.1 or later, below 3.0 |
-| Pillow | Version 12 or later, below 13.0 |
-| FFmpeg | A recent full build with `prores_ks` and `libx264` |
-
-Use a stable, 64-bit version of Python rather than a beta or preview release.
-
-Python 3.10 and 3.11 can run the script, but `pip` may install an older compatible version of NumPy automatically. Python 3.12 or later provides the most straightforward installation.
-
-### What each dependency does
-
-- **Python** runs the animation script.
-- **NumPy** processes the image and animation data.
-- **Pillow** reads the logo and creates the individual animation frames.
-- **FFmpeg** combines the frames into the MOV and MP4 video files.
-
-FFmpeg is a separate desktop command-line program. Installing a Python package named `ffmpeg` does not install the FFmpeg application required by this script.
+* A **transparent ProRes 4444 master** for further processing or animated WebP conversion.
+* A **standard H.264 MP4 preview** rendered over a black background.
 
 ---
 
-# Installation
+## Output Specifications
 
-## 1. Create a project folder
+| Property                 | Value                |
+| ------------------------ | -------------------- |
+| Duration                 | 3 seconds            |
+| Resolution               | 1004 × 288 pixels    |
+| Frame rate               | 30 FPS               |
+| Audio                    | None                 |
+| Playback                 | One-shot entrance    |
+| Transparent master       | ProRes 4444 MOV      |
+| Standard preview         | H.264 MP4 over black |
+| Animated delivery format | WebP                 |
 
-Create a folder for the renderer and place these files inside it:
+The renderer creates:
+
+```text
+jellyfin_logo_intro_alpha.mov
+jellyfin_logo_intro.mp4
+```
+
+The transparent MOV should be used when creating the animated WebP.
+
+The MP4 is intended as a convenient preview and **does not contain transparency**.
+
+---
+
+## Project Structure
+
+Keep the renderer and source logo together in the same project directory:
+
+```text
+jellyfin-logo-intro/
+├── render_jellyfin_intro.py
+└── jellyfin_logo.png
+```
+
+The recommended source image is:
+
+```text
+1004 × 288 PNG
+```
+
+A PNG using the same aspect ratio may also be used. The renderer will resize it automatically.
+
+---
+
+## Requirements
+
+| Software           | Requirement                                     |
+| ------------------ | ----------------------------------------------- |
+| Python             | 3.10 or newer                                   |
+| Recommended Python | Python 3.13                                     |
+| NumPy              | `>=2.2,<3`                                      |
+| Pillow             | `>=12,<13`                                      |
+| FFmpeg             | Full build containing `prores_ks` and `libx264` |
+| WebP support       | FFmpeg containing `libwebp_anim`                |
+
+The setup instructions create a local Python virtual environment named:
+
+```text
+.venv
+```
+
+Python dependencies are therefore isolated from the system-wide Python installation.
+
+FFmpeg may simply be installed on the system and available through `PATH`. The Python renderer does not require a hardcoded FFmpeg executable path.
+
+---
+
+# Quick Start
+
+Once the prerequisites are installed, rendering requires only the following command.
+
+### Windows
+
+```powershell
+.\.venv\Scripts\python.exe .\render_jellyfin_intro.py .\jellyfin_logo.png --output-directory .\output
+```
+
+### macOS / Linux
+
+```bash
+.venv/bin/python render_jellyfin_intro.py jellyfin_logo.png --output-directory output
+```
+
+The output directory will contain:
+
+```text
+output/
+├── jellyfin_logo_intro_alpha.mov
+└── jellyfin_logo_intro.mp4
+```
+
+You can then convert the transparent MOV to animated WebP using the commands later in this README.
+
+---
+
+# Windows
+
+Use **PowerShell**.
+
+## Install Everything
+
+Change the project directory below to the folder containing:
+
+```text
+render_jellyfin_intro.py
+jellyfin_logo.png
+```
+
+Then paste the entire block into PowerShell.
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+# Change this to your project folder.
+Set-Location "C:\path\to\jellyfin-logo-intro"
+
+# Install Python 3.13.
+winget install `
+    --exact `
+    --id Python.Python.3.13 `
+    --source winget `
+    --accept-source-agreements `
+    --accept-package-agreements
+
+# Install a full FFmpeg build.
+winget install `
+    --exact `
+    --id Gyan.FFmpeg `
+    --source winget `
+    --accept-source-agreements `
+    --accept-package-agreements
+
+# Reload the machine and user PATH into this PowerShell session.
+$env:Path = `
+    [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+    [Environment]::GetEnvironmentVariable("Path", "User")
+
+# Verify that the renderer exists.
+if (-not (Test-Path ".\render_jellyfin_intro.py")) {
+    throw "render_jellyfin_intro.py was not found in the current folder."
+}
+
+# Verify that the source logo exists.
+if (-not (Test-Path ".\jellyfin_logo.png")) {
+    throw "jellyfin_logo.png was not found in the current folder."
+}
+
+# Create a private Python virtual environment.
+py -3.13 -m venv .venv
+
+# Upgrade pip.
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+
+# Install Python dependencies.
+.\.venv\Scripts\python.exe -m pip install `
+    "numpy>=2.2,<3" `
+    "Pillow>=12,<13"
+
+# Verify Python and package versions.
+.\.venv\Scripts\python.exe -c "import sys, numpy, PIL; print(f'Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}')"
+
+# Verify FFmpeg.
+ffmpeg -version | Select-Object -First 1
+
+# Read the available FFmpeg encoders.
+$encoders = ffmpeg -hide_banner -encoders 2>&1 | Out-String
+
+# Verify the encoders required by this project.
+foreach ($encoder in @("prores_ks", "libx264", "libwebp_anim")) {
+    if ($encoders -notmatch [regex]::Escape($encoder)) {
+        throw "The installed FFmpeg build does not contain the '$encoder' encoder."
+    }
+}
+
+Write-Host "`nSetup completed successfully." -ForegroundColor Green
+```
+
+---
+
+## Render on Windows
+
+From the project directory, run:
+
+```powershell
+.\.venv\Scripts\python.exe `
+    .\render_jellyfin_intro.py `
+    .\jellyfin_logo.png `
+    --output-directory .\output
+```
+
+The completed videos will be written to:
+
+```text
+output\jellyfin_logo_intro_alpha.mov
+output\jellyfin_logo_intro.mp4
+```
+
+---
+
+## Convert to Animated WebP on Windows
+
+The transparent ProRes MOV should be used as the input.
+
+### Lossless WebP
+
+This creates a high-fidelity lossless animated WebP with transparency:
+
+```powershell
+ffmpeg -y `
+    -i ".\output\jellyfin_logo_intro_alpha.mov" `
+    -vf "fps=30,format=bgra" `
+    -c:v libwebp_anim `
+    -lossless 1 `
+    -compression_level 6 `
+    -loop 1 `
+    -an `
+    ".\output\jellyfin_logo_intro.webp"
+```
+
+### Smaller WebP
+
+For websites where file size matters more than completely lossless compression:
+
+```powershell
+ffmpeg -y `
+    -i ".\output\jellyfin_logo_intro_alpha.mov" `
+    -vf "fps=30,format=bgra" `
+    -c:v libwebp_anim `
+    -lossless 0 `
+    -q:v 85 `
+    -compression_level 6 `
+    -loop 1 `
+    -an `
+    ".\output\jellyfin_logo_intro.webp"
+```
+
+Display the generated files:
+
+```powershell
+Get-ChildItem ".\output\jellyfin_logo_intro*" |
+    Select-Object Name, Length, LastWriteTime
+```
+
+---
+
+# macOS
+
+Use **Terminal**.
+
+The following setup automatically installs Homebrew when it is not already installed.
+
+The Homebrew installer may request the local Mac account password.
+
+## Install Everything
+
+Change the first path to your project directory and paste the entire block into Terminal.
+
+```bash
+set -e
+
+# Change this to your project folder.
+cd "/path/to/jellyfin-logo-intro"
+
+# Install Homebrew when it is not already installed.
+if ! command -v brew >/dev/null 2>&1; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+# Locate Homebrew.
+if [ -x /opt/homebrew/bin/brew ]; then
+  BREW="/opt/homebrew/bin/brew"
+elif [ -x /usr/local/bin/brew ]; then
+  BREW="/usr/local/bin/brew"
+else
+  echo "Homebrew could not be found after installation." >&2
+  exit 1
+fi
+
+# Make Homebrew available in the current terminal.
+eval "$("$BREW" shellenv)"
+
+# Determine the appropriate shell profile.
+case "${SHELL:-}" in
+  */zsh)
+    PROFILE="$HOME/.zprofile"
+    ;;
+  *)
+    PROFILE="$HOME/.bash_profile"
+    ;;
+esac
+
+touch "$PROFILE"
+
+# Make Homebrew available automatically in future terminal sessions.
+BREW_LINE="eval \"\$($BREW shellenv)\""
+
+grep -Fqx "$BREW_LINE" "$PROFILE" 2>/dev/null ||
+  printf '%s\n' "$BREW_LINE" >> "$PROFILE"
+
+# Install Python 3.13 and a full FFmpeg build.
+"$BREW" install python@3.13 ffmpeg-full
+
+# Put ffmpeg-full first on PATH.
+FFMPEG_BIN="$("$BREW" --prefix ffmpeg-full)/bin"
+export PATH="$FFMPEG_BIN:$PATH"
+
+# Save the FFmpeg PATH configuration.
+FFMPEG_LINE="export PATH=\"$FFMPEG_BIN:\$PATH\""
+
+grep -Fqx "$FFMPEG_LINE" "$PROFILE" 2>/dev/null ||
+  printf '%s\n' "$FFMPEG_LINE" >> "$PROFILE"
+
+# Verify project files.
+test -f "render_jellyfin_intro.py" || {
+  echo "render_jellyfin_intro.py was not found in the current folder." >&2
+  exit 1
+}
+
+test -f "jellyfin_logo.png" || {
+  echo "jellyfin_logo.png was not found in the current folder." >&2
+  exit 1
+}
+
+# Locate the Homebrew Python 3.13 executable.
+PYTHON="$("$BREW" --prefix python@3.13)/bin/python3.13"
+
+# Create the virtual environment.
+"$PYTHON" -m venv .venv
+
+# Install Python dependencies.
+.venv/bin/python -m pip install --upgrade pip
+
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+
+# Verify Python and installed dependencies.
+.venv/bin/python -c \
+  'import sys, numpy, PIL; print(f"Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}")'
+
+# Verify FFmpeg.
+ffmpeg -version | head -n 1
+
+# Verify required FFmpeg encoders.
+ENCODERS="$(ffmpeg -hide_banner -encoders 2>&1)"
+
+for ENCODER in prores_ks libx264 libwebp_anim; do
+  printf '%s\n' "$ENCODERS" | grep -q "$ENCODER" || {
+    echo "The installed FFmpeg build does not contain the '$ENCODER' encoder." >&2
+    exit 1
+  }
+done
+
+printf '\nSetup completed successfully.\n'
+```
+
+---
+
+## Render on macOS
+
+```bash
+.venv/bin/python \
+  render_jellyfin_intro.py \
+  jellyfin_logo.png \
+  --output-directory output
+```
+
+---
+
+## Convert to Animated WebP on macOS
+
+### Lossless
+
+```bash
+ffmpeg -y \
+  -i "output/jellyfin_logo_intro_alpha.mov" \
+  -vf "fps=30,format=bgra" \
+  -c:v libwebp_anim \
+  -lossless 1 \
+  -compression_level 6 \
+  -loop 1 \
+  -an \
+  "output/jellyfin_logo_intro.webp"
+```
+
+### Smaller High-Quality Version
+
+```bash
+ffmpeg -y \
+  -i "output/jellyfin_logo_intro_alpha.mov" \
+  -vf "fps=30,format=bgra" \
+  -c:v libwebp_anim \
+  -lossless 0 \
+  -q:v 85 \
+  -compression_level 6 \
+  -loop 1 \
+  -an \
+  "output/jellyfin_logo_intro.webp"
+```
+
+Display the generated files:
+
+```bash
+ls -lh output/jellyfin_logo_intro*
+```
+
+---
+
+# Linux
+
+Python 3.10 or newer is required.
+
+The installation commands below verify the installed Python version before creating the virtual environment.
+
+Choose the section for your Linux distribution.
+
+---
+
+## Ubuntu / Linux Mint
+
+```bash
+set -e
+
+# Change this to your project folder.
+cd "/path/to/jellyfin-logo-intro"
+
+# Update package information.
+sudo apt-get update
+
+# Install repository management tools.
+sudo apt-get install -y software-properties-common
+
+# Enable Ubuntu Universe.
+sudo add-apt-repository -y universe
+
+# Refresh repository information.
+sudo apt-get update
+
+# Install Python and FFmpeg.
+sudo apt-get install -y \
+  python3 \
+  python3-venv \
+  python3-pip \
+  ffmpeg
+
+# Require Python 3.10 or newer.
+python3 -c \
+  'import sys; assert sys.version_info >= (3, 10), "Python 3.10 or newer is required."; print(sys.version)'
+
+# Verify project files.
+test -f "render_jellyfin_intro.py" || {
+  echo "render_jellyfin_intro.py was not found in the current folder." >&2
+  exit 1
+}
+
+test -f "jellyfin_logo.png" || {
+  echo "jellyfin_logo.png was not found in the current folder." >&2
+  exit 1
+}
+
+# Create the virtual environment.
+python3 -m venv .venv
+
+# Install dependencies.
+.venv/bin/python -m pip install --upgrade pip
+
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+
+# Verify Python and package versions.
+.venv/bin/python -c \
+  'import sys, numpy, PIL; print(f"Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}")'
+
+# Verify FFmpeg.
+ffmpeg -version | head -n 1
+
+# Verify required encoders.
+ENCODERS="$(ffmpeg -hide_banner -encoders 2>&1)"
+
+for ENCODER in prores_ks libx264 libwebp_anim; do
+  printf '%s\n' "$ENCODERS" | grep -q "$ENCODER" || {
+    echo "The installed FFmpeg build does not contain the '$ENCODER' encoder." >&2
+    exit 1
+  }
+done
+
+printf '\nSetup completed successfully.\n'
+```
+
+---
+
+## Debian
+
+```bash
+set -e
+
+# Change this to your project folder.
+cd "/path/to/jellyfin-logo-intro"
+
+# Install Python and FFmpeg.
+sudo apt-get update
+
+sudo apt-get install -y \
+  python3 \
+  python3-venv \
+  python3-pip \
+  ffmpeg
+
+# Require Python 3.10 or newer.
+python3 -c \
+  'import sys; assert sys.version_info >= (3, 10), "Python 3.10 or newer is required."; print(sys.version)'
+
+# Verify project files.
+test -f "render_jellyfin_intro.py" || {
+  echo "render_jellyfin_intro.py was not found in the current folder." >&2
+  exit 1
+}
+
+test -f "jellyfin_logo.png" || {
+  echo "jellyfin_logo.png was not found in the current folder." >&2
+  exit 1
+}
+
+# Create the virtual environment.
+python3 -m venv .venv
+
+# Install dependencies.
+.venv/bin/python -m pip install --upgrade pip
+
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+
+# Verify Python and package versions.
+.venv/bin/python -c \
+  'import sys, numpy, PIL; print(f"Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}")'
+
+# Verify FFmpeg.
+ffmpeg -version | head -n 1
+
+# Verify required encoders.
+ENCODERS="$(ffmpeg -hide_banner -encoders 2>&1)"
+
+for ENCODER in prores_ks libx264 libwebp_anim; do
+  printf '%s\n' "$ENCODERS" | grep -q "$ENCODER" || {
+    echo "The installed FFmpeg build does not contain the '$ENCODER' encoder." >&2
+    exit 1
+  }
+done
+
+printf '\nSetup completed successfully.\n'
+```
+
+---
+
+## Fedora
+
+Fedora's standard `ffmpeg-free` package may not contain everything required for the H.264 preview.
+
+The following commands enable **RPM Fusion Free** and install its full FFmpeg package.
+
+```bash
+set -e
+
+# Change this to your project folder.
+cd "/path/to/jellyfin-logo-intro"
+
+# Install Python.
+sudo dnf install -y \
+  python3 \
+  python3-pip
+
+# Enable RPM Fusion Free.
+sudo dnf install -y \
+  "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm"
+
+# Replace Fedora's limited FFmpeg package when installed.
+if rpm -q ffmpeg-free >/dev/null 2>&1; then
+  sudo dnf swap -y ffmpeg-free ffmpeg --allowerasing
+else
+  sudo dnf install -y ffmpeg --allowerasing
+fi
+
+# Require Python 3.10 or newer.
+python3 -c \
+  'import sys; assert sys.version_info >= (3, 10), "Python 3.10 or newer is required."; print(sys.version)'
+
+# Verify project files.
+test -f "render_jellyfin_intro.py" || {
+  echo "render_jellyfin_intro.py was not found in the current folder." >&2
+  exit 1
+}
+
+test -f "jellyfin_logo.png" || {
+  echo "jellyfin_logo.png was not found in the current folder." >&2
+  exit 1
+}
+
+# Create the virtual environment.
+python3 -m venv .venv
+
+# Install dependencies.
+.venv/bin/python -m pip install --upgrade pip
+
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+
+# Verify Python and installed dependencies.
+.venv/bin/python -c \
+  'import sys, numpy, PIL; print(f"Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}")'
+
+# Verify FFmpeg.
+ffmpeg -version | head -n 1
+
+# Verify required encoders.
+ENCODERS="$(ffmpeg -hide_banner -encoders 2>&1)"
+
+for ENCODER in prores_ks libx264 libwebp_anim; do
+  printf '%s\n' "$ENCODERS" | grep -q "$ENCODER" || {
+    echo "The installed FFmpeg build does not contain the '$ENCODER' encoder." >&2
+    exit 1
+  }
+done
+
+printf '\nSetup completed successfully.\n'
+```
+
+---
+
+## Arch Linux / Manjaro
+
+```bash
+set -e
+
+# Change this to your project folder.
+cd "/path/to/jellyfin-logo-intro"
+
+# Install Python and FFmpeg.
+sudo pacman -Syu --needed \
+  python \
+  python-pip \
+  ffmpeg
+
+# Require Python 3.10 or newer.
+python -c \
+  'import sys; assert sys.version_info >= (3, 10), "Python 3.10 or newer is required."; print(sys.version)'
+
+# Verify project files.
+test -f "render_jellyfin_intro.py" || {
+  echo "render_jellyfin_intro.py was not found in the current folder." >&2
+  exit 1
+}
+
+test -f "jellyfin_logo.png" || {
+  echo "jellyfin_logo.png was not found in the current folder." >&2
+  exit 1
+}
+
+# Create the virtual environment.
+python -m venv .venv
+
+# Install dependencies.
+.venv/bin/python -m pip install --upgrade pip
+
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+
+# Verify Python and installed dependencies.
+.venv/bin/python -c \
+  'import sys, numpy, PIL; print(f"Python {sys.version.split()[0]} | NumPy {numpy.__version__} | Pillow {PIL.__version__}")'
+
+# Verify FFmpeg.
+ffmpeg -version | head -n 1
+
+# Verify required encoders.
+ENCODERS="$(ffmpeg -hide_banner -encoders 2>&1)"
+
+for ENCODER in prores_ks libx264 libwebp_anim; do
+  printf '%s\n' "$ENCODERS" | grep -q "$ENCODER" || {
+    echo "The installed FFmpeg build does not contain the '$ENCODER' encoder." >&2
+    exit 1
+  }
+done
+
+printf '\nSetup completed successfully.\n'
+```
+
+---
+
+# Render on Linux
+
+After completing the setup for your distribution:
+
+```bash
+.venv/bin/python \
+  render_jellyfin_intro.py \
+  jellyfin_logo.png \
+  --output-directory output
+```
+
+---
+
+# Convert to Animated WebP on Linux
+
+## Lossless
+
+```bash
+ffmpeg -y \
+  -i "output/jellyfin_logo_intro_alpha.mov" \
+  -vf "fps=30,format=bgra" \
+  -c:v libwebp_anim \
+  -lossless 1 \
+  -compression_level 6 \
+  -loop 1 \
+  -an \
+  "output/jellyfin_logo_intro.webp"
+```
+
+## Smaller High-Quality Version
+
+```bash
+ffmpeg -y \
+  -i "output/jellyfin_logo_intro_alpha.mov" \
+  -vf "fps=30,format=bgra" \
+  -c:v libwebp_anim \
+  -lossless 0 \
+  -q:v 85 \
+  -compression_level 6 \
+  -loop 1 \
+  -an \
+  "output/jellyfin_logo_intro.webp"
+```
+
+Display the generated files:
+
+```bash
+ls -lh output/jellyfin_logo_intro*
+```
+
+---
+
+# WebP Loop Behavior
+
+The WebP commands use:
+
+```text
+-loop 1
+```
+
+This produces finite playback rather than continuously looping forever.
+
+A value of:
+
+```text
+-loop 0
+```
+
+is reserved for infinite looping.
+
+For this project, `-loop 1` is used because the logo animation is designed as a **one-shot entrance**.
+
+---
+
+# Verify Your Installation
+
+These commands can be useful when diagnosing setup problems.
+
+---
+
+## Windows
+
+### Locate Python and FFmpeg
+
+```powershell
+Get-Command py
+Get-Command ffmpeg
+```
+
+### Check Installed Python Packages
+
+```powershell
+.\.venv\Scripts\python.exe -m pip show numpy Pillow
+```
+
+### Check Required FFmpeg Encoders
+
+```powershell
+ffmpeg -hide_banner -encoders 2>&1 |
+    Select-String "prores_ks|libx264|libwebp_anim"
+```
+
+Expected encoder names include:
+
+```text
+prores_ks
+libx264
+libwebp_anim
+```
+
+### Show Renderer Help
+
+```powershell
+.\.venv\Scripts\python.exe .\render_jellyfin_intro.py --help
+```
+
+---
+
+## macOS / Linux
+
+### Locate Python and FFmpeg
+
+```bash
+command -v python3 || command -v python
+command -v ffmpeg
+```
+
+### Check Installed Python Packages
+
+```bash
+.venv/bin/python -m pip show numpy Pillow
+```
+
+### Check Required FFmpeg Encoders
+
+```bash
+ffmpeg -hide_banner -encoders 2>&1 |
+  grep -E "prores_ks|libx264|libwebp_anim"
+```
+
+Expected encoder names include:
+
+```text
+prores_ks
+libx264
+libwebp_anim
+```
+
+### Show Renderer Help
+
+```bash
+.venv/bin/python render_jellyfin_intro.py --help
+```
+
+---
+
+# Rebuild the Python Environment
+
+If the `.venv` directory becomes damaged, dependencies become corrupted, or you simply want a clean Python environment, delete it and recreate it.
+
+---
+
+## Windows PowerShell
+
+```powershell
+Remove-Item `
+    -Recurse `
+    -Force `
+    .\.venv `
+    -ErrorAction SilentlyContinue
+
+py -3.13 -m venv .venv
+
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+
+.\.venv\Scripts\python.exe -m pip install `
+    "numpy>=2.2,<3" `
+    "Pillow>=12,<13"
+```
+
+---
+
+## macOS
+
+Using the Homebrew Python installed by the setup instructions:
+
+```bash
+rm -rf .venv
+
+"$(brew --prefix python@3.13)/bin/python3.13" \
+  -m venv .venv
+
+.venv/bin/python \
+  -m pip install --upgrade pip
+
+.venv/bin/python \
+  -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+```
+
+---
+
+## Linux
+
+```bash
+rm -rf .venv
+
+python3 -m venv .venv
+
+.venv/bin/python \
+  -m pip install --upgrade pip
+
+.venv/bin/python \
+  -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+```
+
+---
+
+# Expected Final Output
+
+After rendering the animation and converting the transparent MOV to WebP, the project should contain:
 
 ```text
 jellyfin-logo-intro/
 ├── render_jellyfin_intro.py
 ├── jellyfin_logo.png
-└── README.md
-```
-
-The logo can have another filename, but the examples in this guide use:
-
-```text
-jellyfin_logo.png
-```
-
----
-
-## 2. Install Python
-
-### Windows
-
-1. Open the official [Python download page](https://www.python.org/downloads/).
-2. Download a stable 64-bit Python release. Python 3.12, 3.13, or 3.14 is recommended.
-3. Run the installer.
-4. Enable the option that adds Python to `PATH`, when that option is shown.
-5. Complete the installation.
-6. Close and reopen Command Prompt or PowerShell.
-
-Check the installation with:
-
-```powershell
-py --version
-```
-
-A result similar to the following confirms that Python is available:
-
-```text
-Python 3.13.7
-```
-
-The exact version number may be different.
-
-When the `py` command is unavailable, try:
-
-```powershell
-python --version
-```
-
-### macOS
-
-Python can be installed from the official [Python download page](https://www.python.org/downloads/) or through Homebrew.
-
-Using the official installer:
-
-1. Download a stable macOS installer.
-2. Open the downloaded package.
-3. Follow the installation prompts.
-4. Close and reopen Terminal.
-
-Check the installation with:
-
-```bash
-python3 --version
-```
-
-Using Homebrew instead:
-
-```bash
-brew install python
-```
-
-Then check the installation:
-
-```bash
-python3 --version
-```
-
-### Linux
-
-Many Linux distributions already include Python. Check the installed version first:
-
-```bash
-python3 --version
-```
-
-A version of Python 3.10 or later is required. Python 3.12 or later is recommended.
-
-#### Ubuntu or Debian
-
-```bash
-sudo apt update
-sudo apt install python3 python3-pip python3-venv
-```
-
-#### Fedora
-
-```bash
-sudo dnf install python3 python3-pip
-```
-
-#### Arch Linux or Manjaro
-
-```bash
-sudo pacman -S python python-pip
-```
-
-Do not replace or remove the operating system's built-in Python installation. Install an additional supported Python version when the system version is too old.
-
----
-
-## 3. Install FFmpeg
-
-FFmpeg can be installed anywhere, provided the folder containing the FFmpeg executable is included in the system `PATH`.
-
-The script searches for the command named `ffmpeg` automatically. A direct file reference is not required.
-
-After installation, this command must work:
-
-```text
-ffmpeg -version
-```
-
-### Windows — recommended Winget installation
-
-On current versions of Windows 10 and Windows 11, FFmpeg can be installed from Command Prompt or PowerShell with Winget:
-
-```powershell
-winget install --id Gyan.FFmpeg -e
-```
-
-This installs the full Gyan FFmpeg build.
-
-After the installation:
-
-1. Close Command Prompt, PowerShell, and any open code editors.
-2. Open a new Command Prompt or PowerShell window.
-3. Run:
-
-```powershell
-ffmpeg -version
-```
-
-When version information appears, FFmpeg is ready.
-
-#### When Winget is unavailable
-
-Winget is normally supplied through Microsoft App Installer on current Windows installations. A manual FFmpeg installation can be used instead.
-
-### Windows — manual installation
-
-1. Open the official [FFmpeg download page](https://ffmpeg.org/download.html).
-2. Select the Windows builds link for [gyan.dev](https://www.gyan.dev/ffmpeg/builds/).
-3. Download the **release full** ZIP build.
-4. Create this folder:
-
-```text
-C:\Tools\ffmpeg
-```
-
-5. Extract or move the downloaded files so the executable is located here:
-
-```text
-C:\Tools\ffmpeg\bin\ffmpeg.exe
-```
-
-The important part is that the final folder contains:
-
-```text
-C:\Tools\ffmpeg\bin\ffmpeg.exe
-C:\Tools\ffmpeg\bin\ffprobe.exe
-C:\Tools\ffmpeg\bin\ffplay.exe
-```
-
-#### Add FFmpeg to the Windows PATH
-
-1. Open the Windows Start menu.
-2. Search for **environment variables**.
-3. Open **Edit environment variables for your account**.
-4. Select the variable named **Path**.
-5. Select **Edit**.
-6. Select **New**.
-7. Enter:
-
-```text
-C:\Tools\ffmpeg\bin
-```
-
-8. Confirm each window with **OK**.
-9. Close and reopen Command Prompt or PowerShell.
-10. Test the installation:
-
-```powershell
-ffmpeg -version
-```
-
-Add the folder containing `ffmpeg.exe` to `PATH`, not the path to the `.exe` file itself.
-
-### macOS — recommended Homebrew installation
-
-Homebrew provides the easiest FFmpeg installation on macOS.
-
-Install Homebrew from its official website when it is not already installed:
-
-[https://brew.sh/](https://brew.sh/)
-
-After Homebrew is installed, run:
-
-```bash
-brew install ffmpeg
-```
-
-Homebrew manages the installation location and normally makes FFmpeg available on `PATH` automatically.
-
-Check the installation:
-
-```bash
-ffmpeg -version
-```
-
-Homebrew may display additional shell setup commands after its own installation. Run those commands when prompted before installing FFmpeg.
-
-The current Homebrew package information is available at:
-
-[Homebrew FFmpeg formula](https://formulae.brew.sh/formula/ffmpeg)
-
-### Linux
-
-Linux package managers normally install FFmpeg into a standard location such as `/usr/bin/ffmpeg`, which is already on `PATH`.
-
-#### Ubuntu or Debian
-
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
-
-#### Arch Linux or Manjaro
-
-```bash
-sudo pacman -S ffmpeg
-```
-
-#### Fedora
-
-The standard Fedora `ffmpeg-free` package may not contain the H.264 `libx264` encoder required for the MP4 preview.
-
-For the complete FFmpeg package:
-
-1. Configure RPM Fusion using its official instructions:
-
-   [RPM Fusion configuration](https://rpmfusion.org/Configuration)
-
-2. When `ffmpeg-free` is already installed, replace it with the complete package:
-
-```bash
-sudo dnf swap ffmpeg-free ffmpeg --allowerasing
-```
-
-When `ffmpeg-free` is not installed, use:
-
-```bash
-sudo dnf install ffmpeg --allowerasing
-```
-
-RPM Fusion also provides current multimedia guidance here:
-
-[RPM Fusion multimedia guide](https://rpmfusion.org/Howto/Multimedia)
-
-#### Other Linux distributions
-
-Use the distribution's normal package manager or select a Linux package from the official [FFmpeg download page](https://ffmpeg.org/download.html).
-
----
-
-## 4. Check the required FFmpeg encoders
-
-The renderer requires these FFmpeg encoders:
-
-- `prores_ks` for the transparent ProRes 4444 MOV
-- `libx264` for the H.264 MP4 preview
-
-The optional WebP conversion also uses:
-
-- `libwebp_anim`
-
-### Windows
-
-Run:
-
-```powershell
-ffmpeg -hide_banner -encoders | findstr /I "prores_ks libx264 libwebp_anim"
-```
-
-### macOS or Linux
-
-Run:
-
-```bash
-ffmpeg -hide_banner -encoders | grep -E "prores_ks|libx264|libwebp_anim"
-```
-
-At minimum, `prores_ks` and `libx264` should appear in the results.
-
-`libwebp_anim` is only required when using the WebP conversion command later in this guide.
-
-When an encoder is missing, install a complete or full FFmpeg build rather than a minimal build.
-
----
-
-# Project setup
-
-## 5. Open a terminal in the project folder
-
-Open Command Prompt, PowerShell, or Terminal and change to the folder containing the script.
-
-### Windows example
-
-```powershell
-cd "C:\Users\YourName\Desktop\jellyfin-logo-intro"
-```
-
-### macOS example
-
-```bash
-cd "/Users/YourName/Desktop/jellyfin-logo-intro"
-```
-
-### Linux example
-
-```bash
-cd "/home/YourName/jellyfin-logo-intro"
-```
-
-Use quotation marks when a folder or filename contains spaces.
-
----
-
-## 6. Create a Python virtual environment
-
-A virtual environment keeps the required Python packages inside the project folder instead of installing them across the whole computer.
-
-This step is recommended.
-
-### Windows PowerShell
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### Windows Command Prompt
-
-```bat
-py -m venv .venv
-.venv\Scripts\activate.bat
-```
-
-### macOS or Linux
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-After activation, the terminal usually displays `(.venv)` at the start of the command line.
-
-Example:
-
-```text
-(.venv) C:\Users\YourName\Desktop\jellyfin-logo-intro>
+├── .venv/
+└── output/
+    ├── jellyfin_logo_intro_alpha.mov
+    ├── jellyfin_logo_intro.mp4
+    └── jellyfin_logo_intro.webp
 ```
 
 ---
 
-## 7. Install the Python dependencies
+## Transparent Editing Master
 
-With the virtual environment active, upgrade `pip`:
-
-```bash
-python -m pip install --upgrade pip
-```
-
-Install NumPy and Pillow:
-
-```bash
-python -m pip install "numpy>=2.1,<3" "Pillow>=12,<13"
-```
-
-No other Python packages are required.
-
-### Optional `requirements.txt`
-
-For a reusable project setup, create a file named `requirements.txt` containing:
+Use:
 
 ```text
-numpy>=2.1,<3
-Pillow>=12,<13
+output/jellyfin_logo_intro_alpha.mov
 ```
 
-The dependencies can then be installed with:
+for:
 
-```bash
-python -m pip install -r requirements.txt
-```
+* Animated WebP conversion
+* Further editing
+* Compositing
+* Transparent-background workflows
+* Archival master output
 
-### Confirm the packages are installed
-
-Run:
-
-```bash
-python -c "import numpy; import PIL; print('NumPy:', numpy.__version__); print('Pillow:', PIL.__version__)"
-```
-
-The command should print the installed NumPy and Pillow versions without an error.
+The file uses **ProRes 4444** so the alpha channel can be retained.
 
 ---
 
-# Preparing the logo
+## Standard Preview
 
-## 8. Check the source image
-
-The recommended source is:
+Use:
 
 ```text
-jellyfin_logo.png
+output/jellyfin_logo_intro.mp4
 ```
 
-For the best result, the image should meet these requirements:
+for:
 
-- PNG format
-- 1004 × 288 pixels
-- Full Jellyfin symbol and wordmark
-- No cropping
-- Transparent background preferred
-- Original purple-to-blue symbol gradient
-- White wordmark
+* Easy local playback
+* Sharing a preview
+* Browser-compatible testing
+* Reviewing animation timing
 
-The script can also process a logo with an opaque black background. It detects a solid black background from the image corners and converts it to transparency.
+The MP4 uses H.264 and is rendered over a black background.
 
-An image with another resolution can be used when it has the same aspect ratio as 1004 × 288. The script resizes it to 1004 × 288 automatically.
-
-An image with a different aspect ratio will be rejected to prevent the logo from being stretched or distorted.
-
-The animation timing and reveal areas are tuned to the supplied Jellyfin logo layout. A substantially different arrangement may require changes to the script.
+It does **not** contain transparency.
 
 ---
 
-# Rendering the animation
+## Web Delivery
 
-## 9. Run the script
+Use:
 
-With the virtual environment active, run:
-
-```bash
-python render_jellyfin_intro.py "jellyfin_logo.png"
+```text
+output/jellyfin_logo_intro.webp
 ```
 
-The script will:
+for:
 
-1. Read and prepare the logo.
-2. Render 90 transparent PNG frames in a temporary folder.
-3. Create the transparent ProRes 4444 MOV.
-4. Create the H.264 MP4 preview.
-5. Remove the temporary frames.
-6. Print the locations of the completed files.
+* Websites
+* Web applications
+* Animated logo entrances
+* Transparent browser-based presentation
 
-The completed files are written to the current folder.
+For maximum image fidelity, use the lossless WebP command.
 
-### Use a separate output folder
+For a smaller website asset, use:
 
-To place the results in a folder named `output`, run:
-
-```bash
-python render_jellyfin_intro.py "jellyfin_logo.png" --output-directory "output"
+```text
+-lossless 0
+-q:v 85
+-compression_level 6
 ```
-
-The output folder is created automatically when it does not already exist.
-
-### Use a logo stored elsewhere
-
-Provide the complete path to the logo:
-
-```bash
-python render_jellyfin_intro.py "/path/to/jellyfin_logo.png"
-```
-
-Windows example:
-
-```powershell
-python render_jellyfin_intro.py "C:\Users\YourName\Pictures\jellyfin_logo.png"
-```
-
-Existing files with the same output names are overwritten when the script is run again.
 
 ---
 
-# Converting the transparent master to WebP
+# FFmpeg Encoder Requirements
 
-Use the transparent MOV rather than the MP4:
+The renderer and conversion workflow rely on three primary FFmpeg encoders.
+
+## `prores_ks`
+
+Used for:
 
 ```text
 jellyfin_logo_intro_alpha.mov
 ```
 
-The following command creates a high-quality, lossless animated WebP with transparency:
+This provides the transparent ProRes 4444 master.
 
-```bash
-ffmpeg -y -i "jellyfin_logo_intro_alpha.mov" -vf "fps=30,format=bgra" -c:v libwebp_anim -lossless 1 -compression_level 6 -loop 1 -an "jellyfin_logo_intro.webp"
+---
+
+## `libx264`
+
+Used for:
+
+```text
+jellyfin_logo_intro.mp4
 ```
 
-The resulting WebP retains:
+This produces the standard H.264 preview.
 
-- 1004 × 288 dimensions
-- 30 frames per second
-- Transparent background
-- Silent playback
-- One complete play
+---
 
-The `-loop 1` setting means the animation is played once. Use `-loop 0` only when an infinite loop is required.
+## `libwebp_anim`
 
-Some websites, applications, or preview tools may ignore an animation's finite-loop setting and replay it automatically.
+Used when converting the transparent MOV into:
 
-## Smaller WebP alternative
-
-Lossless WebP can be relatively large. The following version uses high-quality lossy compression:
-
-```bash
-ffmpeg -y -i "jellyfin_logo_intro_alpha.mov" -vf "fps=30,format=bgra" -c:v libwebp_anim -lossless 0 -q:v 85 -compression_level 6 -loop 1 -an "jellyfin_logo_intro.webp"
+```text
+jellyfin_logo_intro.webp
 ```
 
-Increase `-q:v 85` toward `100` for higher quality and a larger file. Lower it for a smaller file.
+This encoder provides animated WebP output.
+
+You can verify all three at once.
+
+### Windows
+
+```powershell
+ffmpeg -hide_banner -encoders 2>&1 |
+    Select-String "prores_ks|libx264|libwebp_anim"
+```
+
+### macOS / Linux
+
+```bash
+ffmpeg -hide_banner -encoders 2>&1 |
+  grep -E "prores_ks|libx264|libwebp_anim"
+```
 
 ---
 
 # Troubleshooting
 
-## `ffmpeg` is not recognized or cannot be found
+## `ffmpeg` Is Not Recognized
 
-Run:
+### Windows
 
-```text
+Reload the system and user `PATH`:
+
+```powershell
+$env:Path = `
+    [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+    [Environment]::GetEnvironmentVariable("Path", "User")
+```
+
+Then test:
+
+```powershell
 ffmpeg -version
 ```
 
-When the command fails:
-
-1. Confirm FFmpeg is installed.
-2. Confirm the folder containing the executable is on `PATH`.
-3. Close and reopen the terminal after changing `PATH`.
-4. Restart an open code editor or development environment.
-
-### Find FFmpeg on Windows
+If necessary, close PowerShell, open a new PowerShell window, and run:
 
 ```powershell
-where ffmpeg
+ffmpeg -version
 ```
 
-### Find FFmpeg on macOS or Linux
+---
 
-```bash
-which ffmpeg
-```
+## Python Is Not Recognized on Windows
 
-The script does not need a direct FFmpeg file reference when either command returns an executable location.
-
-## `No module named numpy`
-
-Activate the virtual environment and run:
-
-```bash
-python -m pip install "numpy>=2.1,<3"
-```
-
-## `No module named PIL`
-
-The import name is `PIL`, but the package is installed as `Pillow`.
-
-Run:
-
-```bash
-python -m pip install "Pillow>=12,<13"
-```
-
-Do not install the old package named `PIL`.
-
-## PowerShell will not activate the virtual environment
-
-PowerShell may display a message stating that script execution is disabled.
-
-Use Command Prompt instead:
-
-```bat
-.venv\Scripts\activate.bat
-```
-
-Alternatively, run the virtual environment's Python directly without activating it:
+Test the Python launcher:
 
 ```powershell
-.venv\Scripts\python.exe -m pip install "numpy>=2.1,<3" "Pillow>=12,<13"
+py --version
 ```
 
-Then render with:
+Test Python 3.13 specifically:
 
 ```powershell
-.venv\Scripts\python.exe render_jellyfin_intro.py "jellyfin_logo.png"
+py -3.13 --version
 ```
 
-This does not require changing the PowerShell execution policy.
+If Python 3.13 is not installed:
 
-## `Unknown encoder 'libx264'`
+```powershell
+winget install `
+    --exact `
+    --id Python.Python.3.13 `
+    --source winget `
+    --accept-source-agreements `
+    --accept-package-agreements
+```
 
-The installed FFmpeg build does not contain the H.264 encoder needed for the MP4 preview.
+---
 
-Install a full FFmpeg build:
+## Virtual Environment Is Missing
 
-- Windows: use `Gyan.FFmpeg`
-- macOS: use the Homebrew `ffmpeg` formula
-- Fedora: use the complete RPM Fusion package
-- Other Linux distributions: use a package that includes `libx264`
+### Windows
 
-## `Unknown encoder 'prores_ks'`
+```powershell
+py -3.13 -m venv .venv
+```
 
-The installed FFmpeg build is incomplete or unusually minimal. Replace it with a complete FFmpeg build.
+### macOS
 
-## `Unknown encoder 'libwebp_anim'`
+```bash
+"$(brew --prefix python@3.13)/bin/python3.13" \
+  -m venv .venv
+```
 
-The video renderer can still create the MOV and MP4, but the optional WebP conversion command requires an FFmpeg build with libwebp animation support.
+### Linux
 
-Install a full FFmpeg build and check again with:
+```bash
+python3 -m venv .venv
+```
+
+---
+
+## NumPy or Pillow Is Missing
+
+### Windows
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install `
+    "numpy>=2.2,<3" `
+    "Pillow>=12,<13"
+```
+
+### macOS / Linux
+
+```bash
+.venv/bin/python -m pip install \
+  "numpy>=2.2,<3" \
+  "Pillow>=12,<13"
+```
+
+---
+
+## Required FFmpeg Encoder Is Missing
+
+Check the installed encoders:
+
+### Windows
+
+```powershell
+ffmpeg -hide_banner -encoders 2>&1 |
+    Select-String "prores_ks|libx264|libwebp_anim"
+```
+
+### macOS / Linux
+
+```bash
+ffmpeg -hide_banner -encoders 2>&1 |
+  grep -E "prores_ks|libx264|libwebp_anim"
+```
+
+If one of the following is missing:
 
 ```text
-ffmpeg -hide_banner -encoders
+prores_ks
+libx264
+libwebp_anim
 ```
 
-## The transparent MOV appears to have a black background
-
-Many ordinary video players do not show transparency. They display transparent areas as black.
-
-Use the MOV in an application that supports alpha channels, or convert it to WebP using the command in this guide.
-
-The MP4 preview always has a black background by design.
-
-## The script reports an aspect-ratio error
-
-Use a source image measuring exactly 1004 × 288 pixels, or resize it to another resolution with the same aspect ratio.
-
-Do not stretch the image to force it into the required dimensions.
-
-## A path containing spaces does not work
-
-Place quotation marks around the complete path:
-
-```bash
-python render_jellyfin_intro.py "C:\My Logo Files\jellyfin_logo.png"
-```
-
-## The script cannot write the output files
-
-Choose a folder where the current user has permission to create files:
-
-```bash
-python render_jellyfin_intro.py "jellyfin_logo.png" --output-directory "output"
-```
-
-Avoid protected operating-system folders such as `C:\Windows`, `/System`, or `/usr`.
+install a fuller FFmpeg distribution using the platform-specific setup instructions above.
 
 ---
 
-# Closing the virtual environment
+## Source Logo Cannot Be Found
 
-After rendering is complete, leave the virtual environment with:
+Confirm the expected project structure:
 
-```bash
-deactivate
+```text
+jellyfin-logo-intro/
+├── render_jellyfin_intro.py
+└── jellyfin_logo.png
 ```
 
-The `.venv` folder can be deleted later to remove the locally installed Python packages. It can be recreated at any time by following the setup instructions again.
+### Windows
+
+```powershell
+Get-ChildItem
+```
+
+### macOS / Linux
+
+```bash
+ls -la
+```
+
+The default render commands expect the source file to be named:
+
+```text
+jellyfin_logo.png
+```
 
 ---
 
-# Official references
+## Output Directory Does Not Exist
 
-- [Python downloads](https://www.python.org/downloads/)
-- [FFmpeg downloads](https://ffmpeg.org/download.html)
-- [Gyan FFmpeg builds for Windows](https://www.gyan.dev/ffmpeg/builds/)
-- [Homebrew](https://brew.sh/)
-- [Homebrew FFmpeg formula](https://formulae.brew.sh/formula/ffmpeg)
-- [NumPy installation guide](https://numpy.org/install/)
-- [Pillow installation guide](https://pillow.readthedocs.io/en/stable/installation/basic-installation.html)
-- [Pillow Python-version support](https://pillow.readthedocs.io/en/stable/installation/python-support.html)
-- [RPM Fusion configuration](https://rpmfusion.org/Configuration)
-- [RPM Fusion multimedia guide](https://rpmfusion.org/Howto/Multimedia)
-- [WebP container specification](https://developers.google.com/speed/webp/docs/riff_container)
+The renderer should create the requested output directory as part of its normal workflow.
+
+Use:
+
+```text
+--output-directory output
+```
+
+For example:
+
+### Windows
+
+```powershell
+.\.venv\Scripts\python.exe `
+    .\render_jellyfin_intro.py `
+    .\jellyfin_logo.png `
+    --output-directory .\output
+```
+
+### macOS / Linux
+
+```bash
+.venv/bin/python \
+  render_jellyfin_intro.py \
+  jellyfin_logo.png \
+  --output-directory output
+```
 
 ---
 
-Dependency and installation guidance last reviewed in September 2026.
+# Complete Workflow
+
+The complete process is:
+
+```text
+jellyfin_logo.png
+        │
+        ▼
+render_jellyfin_intro.py
+        │
+        ├──────────────► jellyfin_logo_intro.mp4
+        │                H.264 preview
+        │                black background
+        │
+        ▼
+jellyfin_logo_intro_alpha.mov
+ProRes 4444
+transparent master
+        │
+        ▼
+FFmpeg libwebp_anim
+        │
+        ▼
+jellyfin_logo_intro.webp
+transparent animated WebP
+```
+
+---
+
+# Recommended Workflow
+
+For normal use:
+
+1. Keep `render_jellyfin_intro.py` and `jellyfin_logo.png` in the same project folder.
+2. Install Python and FFmpeg using the setup instructions for your operating system.
+3. Create the `.venv` environment.
+4. Install NumPy and Pillow.
+5. Verify the required FFmpeg encoders.
+6. Run the renderer.
+7. Preview `jellyfin_logo_intro.mp4`.
+8. Convert `jellyfin_logo_intro_alpha.mov` to WebP.
+9. Use `jellyfin_logo_intro.webp` for website delivery.
+
+For maximum-quality WebP output, use:
+
+```text
+-lossless 1
+```
+
+For a smaller high-quality WebP, use:
+
+```text
+-lossless 0
+-q:v 85
+-compression_level 6
+```
+
+---
+
+# License
+
+Add the appropriate license for your project here.
+
+If this repository contains Jellyfin trademarks, branding, or other upstream assets, make sure your usage complies with the applicable Jellyfin trademark and licensing requirements.
