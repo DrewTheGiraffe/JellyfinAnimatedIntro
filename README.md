@@ -9,6 +9,15 @@ The renderer creates both:
 * A **transparent ProRes 4444 master** for further processing or animated WebP conversion.
 * A **standard H.264 MP4 preview** rendered over a black background.
 
+* Add this one liner css to Jellyfin to use the default Jellyfin logo with subtle animation.
+```css
+.pageTitleWithDefaultLogo { background-image: url('https://raw.githubusercontent.com/DrewTheGiraffe/JellyfinAnimatedIntro/main/jellyfin_logo_intro_alpha.webp') !important; background-size: contain !important; background-repeat: no-repeat !important; background-position: left center !important; }
+```
+* When replacing the WebP later, Jellyfin or the browser may continue showing a cached copy. Change a version number at the end of the URL to force a refresh:
+```css
+.pageTitleWithDefaultLogo { background-image: url('https://raw.githubusercontent.com/DrewTheGiraffe/JellyfinAnimatedIntro/main/jellyfin_logo_intro_alpha.webp?v=2') !important; background-size: contain !important; background-repeat: no-repeat !important; background-position: left center !important; }
+```
+
 ---
 
 ## Output Specifications
