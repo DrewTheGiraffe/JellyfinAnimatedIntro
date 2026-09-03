@@ -9,6 +9,10 @@ The renderer creates both:
 * A **transparent ProRes 4444 master** for further processing or animated WebP conversion.
 * A **standard H.264 MP4 preview** rendered over a black background.
 
+* For instant loading of assets, import the logo directly to the Jellyfin server, the script is not version dependent as it scans for a very generic CSS line in all server directories on Windows.
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File ".\jellyfinlogoimport.ps1"
+```
 * Add this one liner css to Jellyfin to use the default Jellyfin logo with subtle animation.
 ```css
 @import url('https://raw.githubusercontent.com/DrewTheGiraffe/JellyfinAnimatedIntro/main/theme.css')
