@@ -1,0 +1,6 @@
+.pageTitleWithDefaultLogo { 
+  background-image: url('https://raw.githubusercontent.com/DrewTheGiraffe/JellyfinAnimatedIntro/main/jellyfin_logo_intro_alpha.webp') !important; 
+  background-size: contain !important; 
+  background-repeat: no-repeat !important; 
+  background-position: left center !important; 
+}
